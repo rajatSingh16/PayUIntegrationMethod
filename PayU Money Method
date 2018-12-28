@@ -1,0 +1,112 @@
+// This method can be directly used in your code to integrate PayU Payment Gateway
+// Before implementing this method make sure you have required gradle dependencies for Volley and PayU Money
+
+// Most important dpn't forget to initialise the PayU SDK by callig Payu.setInstance(this); in Your Activity
+
+public void CallPayMoney(){
+StringRequest stringRequest = new StringRequest(Request.Method.POST, BuildConfig.BASE_URL + BuildConfig.add_money_url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        try {
+                            dialog.dismiss();
+                            JSONObject jsonObject = new JSONObject(response);
+                            Log.i(">>walletData", "onResponse: " + jsonObject.toString());
+                            mSuccess = jsonObject.optString(ApiParams.success);
+                            mMessage = jsonObject.optString(ApiParams.message);
+                            if (mSuccess.equalsIgnoreCase("true")) {
+                                JSONObject jsonObject1 = jsonObject.getJSONObject(ApiParams.data);
+                                String amount = jsonObject1.getString(ApiParams.amount);
+                                String productinfo = jsonObject1.getString(ApiParams.productinfo);
+                                String surl = jsonObject1.getString(ApiParams.surl);
+                                String furl = jsonObject1.getString(ApiParams.furl);
+                                String key = jsonObject1.getString(ApiParams.key);
+                                String txnid = jsonObject1.getString(ApiParams.txnid);
+                                String firstname = jsonObject1.getString(ApiParams.firstname);
+                                String email = jsonObject1.getString(ApiParams.email);
+                                String phone = jsonObject1.getString(ApiParams.phone);
+                                String hash = jsonObject1.getString(ApiParams.hash);
+                                
+                                // Make sure you receive these parameters from server end correctly
+                                // other wise you will get an error "<br Value of doctype String cannot be converted to Json"
+                                
+                                String vas_for_mobile_sdk_hash = jsonObject1.getString(ApiParams.vas_for_mobile_sdk_hash);
+                                String payment_related_details_for_mobile_sdk_hash = jsonObject1.getString(ApiParams.payment_related_details_for_mobile_sdk_hash);
+                                String get_merchant_ibibo_codes_hash = jsonObject1.getString(ApiParams.get_merchant_ibibo_codes_hash);
+                               
+                                PayuHashes payuHashes = new PayuHashes();
+
+                                payuHashes.setPaymentHash(hash);
+                                payuHashes.setVasForMobileSdkHash(vas_for_mobile_sdk_hash);
+                                payuHashes.setPaymentRelatedDetailsForMobileSdkHash(payment_related_details_for_mobile_sdk_hash);
+                                payuHashes.setMerchantIbiboCodesHash(get_merchant_ibibo_codes_hash);
+
+                                PayuConfig payuConfig = new PayuConfig();
+                                if (URLS.PayUMoney.debug) {
+                                    payuConfig.setEnvironment(PayuConstants.STAGING_ENV);
+                                } else {
+                                    payuConfig.setEnvironment(PayuConstants.PRODUCTION_ENV);
+                                }
+                                
+                                PaymentParams paymentParams = URLS.PayUMoney.makePayment(hash, productinfo, phone, firstname, email, amount, txnid, key, furl, surl);
+                                paymentParams.setHash(hash);
+                                Intent intent = new Intent(AddMoneyActivity.this, PayUBaseActivity.class);
+                                intent.putExtra(PayuConstants.PAYU_CONFIG, payuConfig);
+                                intent.putExtra(PayuConstants.PAYMENT_PARAMS, paymentParams);
+                                intent.putExtra(PayuConstants.PAYU_HASHES, payuHashes);
+                                intent.putExtra(PayuConstants.STORE_ONE_CLICK_HASH, PayuConstants.STORE_ONE_CLICK_HASH_NONE);
+                                startActivityForResult(intent, PayuConstants.PAYU_REQUEST_CODE);
+                            } else {
+                                M.dialogOk(AddMoneyActivity.this, mMessage, "Error");
+                            }
+                        } catch (Exception e) {
+                            Log.i(">>exception", "onResponse: " + e.getMessage());
+                            e.printStackTrace();
+                        }
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        dialog.dismiss();
+                    }
+                }) {
+
+            @Override
+            protected Map<String, String> getParams() throws AuthFailureError {
+                Map<String, String> map = new HashMap<String, String>();
+                
+                // these are the parameters required by PayU money to generate Hash basically this Hash will be generated on server side
+                // these parameters should be placed in a predefined sequence on server side to calculate correct has
+                // other wise you will get a INVALID_HASH error and will be redirected to failure page given by PayU SDK
+                // once you will receive the response of this API you will get be required some other parameters returned by server end
+                // which you can see in OnResponse() method of volley.
+                
+                map.put("amount", Float.parseFloat(etAmount.getText().toString()) + "");
+                map.put("productinfo", "");
+                map.put("firstname", "");
+                map.put("lastname", "");
+                map.put("email", "");
+                map.put("txnid", "");
+                map.put("phone", "");
+                return map;
+            }
+
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                Map<String, String> params = new HashMap<String, String>();
+                params.put(ApiParams.access_token, accessToken);
+                return params;
+            }
+
+        };
+        // I have created a singleton class for calling Volley requests.
+        
+        MySingleton.getInstance(AddMoneyActivity.this).addToRequestQueue(stringRequest);
+        stringRequest.setRetryPolicy(new DefaultRetryPolicy(5000,
+                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
+}
+
+// for server side implementation and hash generation sequence please follow the this link
+https://medium.com/@errohitdhiman/payumoney-php-integration-and-api-for-mobile-e7c5c1439613
